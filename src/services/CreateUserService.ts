@@ -1,28 +1,38 @@
-import User from '../models/User';
-import UsersRepository from '../repositories/UsersRepository';
+import { getRepository } from 'typeorm';
+import { hash } from 'bcryptjs';
 
-interface RequestDTO {
+import AppError from '../errors/AppError';
+
+import User from '../models/User';
+
+interface Request {
     name: string;
-    inventory: string;
+    email: string;
+    password: string;
 }
 
 class CreateUserService {
-    private usersRepository: UsersRepository;
+    public async execute({ name, email, password }: Request): Promise<User> {
+        const usersRepository = getRepository(User);
 
-    constructor(usersRepository: UsersRepository) {
-        this.usersRepository = usersRepository;
-    }
-
-    public execute({ name, inventory }: RequestDTO): User {
-        const findUserInSameName = this.usersRepository.findByName(name);
-
-        if (findUserInSameName) {
-            throw Error('This name is already used');
-        }
-        const user = this.usersRepository.create({
-            name,
-            inventory,
+        const checkUserExists = await usersRepository.findOne({
+            where: { email },
         });
+
+        if (checkUserExists) {
+            throw new AppError('Email address already used');
+        }
+
+        const hashedPassword = await hash(password, 8);
+
+        const user = usersRepository.create({
+            name,
+            email,
+            password: hashedPassword,
+        });
+
+        await usersRepository.save(user);
+
         return user;
     }
 }
